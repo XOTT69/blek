@@ -122,6 +122,19 @@ function showSearchResults(results) {
     $('#searchFeedback').textContent = `Звіти будуть об’єднані для: ${selectedSearchResult.city} · ${selectedSearchResult.district}`;
   }));
 }
+async function loadNearbyPlaces() {
+  if (!locationState.lat || !locationState.lon) { $('#nearbyFeedback').textContent = 'Спершу знайдіть та оберіть адресу через кнопку з локацією вгорі.'; return; }
+  $('#nearbyButton').disabled = true; $('#nearbyButton').textContent = 'Шукаємо поруч…'; $('#nearbyFeedback').textContent = 'Отримуємо об’єкти з OpenStreetMap…';
+  try {
+    const response = await fetch(`/api/nearby?lat=${encodeURIComponent(locationState.lat)}&lon=${encodeURIComponent(locationState.lon)}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error);
+    places = (payload.places || []).map((place) => ({ name: place.name, detail: [place.type, place.openingHours ? `Години: ${place.openingHours}` : 'Режим роботи не вказано'].join(' · '), tags: [], icon: place.icon, distance: 'OSM' }));
+    renderPlaces(); renderMapContext();
+    $('#nearbyFeedback').textContent = places.length ? `Знайдено ${places.length} реальних об’єктів. Дані про режим роботи можуть бути неактуальними — перевіряйте перед візитом.` : 'Поруч не знайдено об’єктів з потрібними тегами OpenStreetMap.';
+  } catch (error) { $('#nearbyFeedback').textContent = error.message || 'Пошук місць тимчасово недоступний.'; }
+  finally { $('#nearbyButton').disabled = false; $('#nearbyButton').textContent = 'Знайти реальні місця поруч'; }
+}
 async function findLocation() {
   const query = $('#locationSearch').value.trim();
   if (query.length < 3) { $('#searchFeedback').textContent = 'Введіть щонайменше 3 символи.'; return; }
@@ -140,10 +153,11 @@ document.querySelectorAll('.report-actions button').forEach((button) => button.a
 $('#locationButton').addEventListener('click', () => { selectedSearchResult = null; $('#locationSearch').value = ''; $('#searchResults').innerHTML = ''; $('#selectedLocation').hidden = true; $('#saveLocation').disabled = true; $('#searchFeedback').textContent = 'Пошук вручну — до 6 точних варіантів.'; $('#locationDialog').showModal(); });
 $('#locationSearchButton').addEventListener('click', findLocation);
 $('#locationSearch').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); findLocation(); } });
-$('#locationDialog').addEventListener('close', async () => { if ($('#locationDialog').returnValue !== 'save' || !selectedSearchResult) return; locationState = selectedSearchResult; localStorage.setItem('poruch-location', JSON.stringify(locationState)); updateLocationLabel(); await refreshLiveData().catch(console.error); if (db) subscribeToUpdates(); toast('Локацію оновлено'); });
+$('#locationDialog').addEventListener('close', async () => { if ($('#locationDialog').returnValue !== 'save' || !selectedSearchResult) return; locationState = selectedSearchResult; localStorage.setItem('poruch-location', JSON.stringify(locationState)); updateLocationLabel(); $('#nearbyFeedback').textContent = 'Локацію оновлено. Натисніть «Знайти реальні місця поруч». '; await refreshLiveData().catch(console.error); if (db) subscribeToUpdates(); toast('Локацію оновлено'); });
 $('#filterButton').addEventListener('click', () => { $('#filterRow').hidden = !$('#filterRow').hidden; });
 document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelector('.filter.active').classList.remove('active'); button.classList.add('active'); renderPlaces(button.dataset.filter); }));
 document.querySelectorAll('.map-pin').forEach((pin) => pin.addEventListener('click', () => { const place = DEMO_PLACES[pin.dataset.place]; toast(`${place.name}: ${place.detail}`); }));
+$('#nearbyButton').addEventListener('click', loadNearbyPlaces);
 function renderQuickReport() {
   $('#quickReport').innerHTML = Object.entries(services).map(([key, item]) => `<button class="${selectedReport[key] === 'available' ? 'selected' : ''}" data-quick="${key}">${item.label}<span>${selectedReport[key] === 'available' ? 'Є / працює' : 'Немає'}</span></button>`).join('');
   document.querySelectorAll('[data-quick]').forEach((button) => button.addEventListener('click', (event) => { event.preventDefault(); const key = button.dataset.quick; selectedReport[key] = selectedReport[key] === 'available' ? 'unavailable' : 'available'; renderQuickReport(); }));
