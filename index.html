@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#12372A" />
+    <meta name="description" content="Поруч — актуальний стан вашого району" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Поруч — що працює у вашому районі</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="Поруч — на головну">
+          <span class="brand-mark">P</span><span>Поруч</span>
+        </a>
+        <button class="location-button" id="locationButton" type="button" aria-label="Змінити район">
+          <span class="location-dot"></span>
+          <span id="locationName">Київ · Поділ</span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+        <button class="install-button" id="installButton" type="button" hidden>Встановити</button>
+      </header>
+
+      <section class="hero" id="top">
+        <p class="eyebrow">Стан вашого району</p>
+        <div class="hero-heading">
+          <h1>Що працює <em>поруч</em>?</h1>
+          <span class="live-pill" id="connectionPill"><i></i> Демо-режим</span>
+        </div>
+        <p class="hero-copy">Загальний стан за повідомленнями сусідів. Дані не прив’язані до вашої точної адреси.</p>
+      </section>
+
+      <section class="status-grid" aria-label="Стан сервісів">
+        <article class="status-card status-good" data-service="electricity">
+          <div class="status-card-top"><span class="status-icon">ϟ</span><span class="status-time" id="electricityTime">2 хв тому</span></div>
+          <h2>Світло</h2><p class="status-value" id="electricityValue">Є</p>
+          <p class="status-proof" id="electricityProof">24 підтвердження за годину</p>
+          <div class="report-actions"><button data-service="electricity" data-status="yes">Є</button><button data-service="electricity" data-status="no">Немає</button></div>
+        </article>
+        <article class="status-card status-good" data-service="water">
+          <div class="status-card-top"><span class="status-icon">⌁</span><span class="status-time" id="waterTime">6 хв тому</span></div>
+          <h2>Вода</h2><p class="status-value" id="waterValue">Є</p>
+          <p class="status-proof" id="waterProof">18 підтверджень за годину</p>
+          <div class="report-actions"><button data-service="water" data-status="yes">Є</button><button data-service="water" data-status="no">Немає</button></div>
+        </article>
+        <article class="status-card status-warn" data-service="internet">
+          <div class="status-card-top"><span class="status-icon">◒</span><span class="status-time" id="internetTime">10 хв тому</span></div>
+          <h2>Мобільний інтернет</h2><p class="status-value" id="internetValue">Нестабільний</p>
+          <p class="status-proof" id="internetProof">9 підтверджень за годину</p>
+          <div class="report-actions"><button data-service="internet" data-status="yes">Працює</button><button data-service="internet" data-status="no">Немає</button></div>
+        </article>
+      </section>
+
+      <section class="notice">
+        <span aria-hidden="true">✦</span><p><strong>Ваше повідомлення важливе.</strong> Один тап допомагає сусідам планувати день.</p>
+      </section>
+
+      <section class="places" id="places">
+        <div class="section-heading">
+          <div><p class="eyebrow">Підтверджені місця</p><h2>Де можна побути зараз</h2></div>
+          <button class="text-button" id="filterButton" type="button">Фільтр <span>⌄</span></button>
+        </div>
+        <div class="filter-row" id="filterRow" hidden>
+          <button class="filter active" data-filter="all">Усі</button>
+          <button class="filter" data-filter="charge">Зарядка</button>
+          <button class="filter" data-filter="wifi">Wi‑Fi</button>
+          <button class="filter" data-filter="water">Вода</button>
+        </div>
+        <div class="map-card" aria-label="Схематична мапа місць">
+          <div class="map-street street-a"></div><div class="map-street street-b"></div><div class="map-street street-c"></div>
+          <span class="map-label label-a">Верхній Вал</span><span class="map-label label-b">Контрактова</span>
+          <button class="map-pin pin-1" data-place="0" aria-label="Кафе Хлебний"><span>⚡</span></button>
+          <button class="map-pin pin-2" data-place="1" aria-label="Бібліотека на Подолі"><span>⌁</span></button>
+          <button class="map-pin pin-3" data-place="2" aria-label="Coworking Підвал"><span>◒</span></button>
+          <div class="you-are-here">Ви тут</div>
+          <p class="map-caption">Точки не показують точні адреси користувачів</p>
+        </div>
+        <div class="place-list" id="placeList"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Основна навігація">
+      <a class="active" href="#top"><span>⌂</span>Стан</a>
+      <a href="#places"><span>⌖</span>Поруч</a>
+      <button type="button" id="reportNav"><span>＋</span>Повідомити</button>
+      <button type="button" id="alertsButton"><span>♧</span>Сповіщення</button>
+    </nav>
+
+    <dialog id="locationDialog" class="modal">
+      <form method="dialog">
+        <button class="close" value="cancel" aria-label="Закрити">×</button>
+        <p class="eyebrow">Ваша локація</p><h2>Оберіть район</h2>
+        <label>Місто<select id="citySelect"><option>Київ</option><option>Львів</option><option>Харків</option><option>Одеса</option></select></label>
+        <label>Район<input id="districtInput" value="Поділ" maxlength="30" /></label>
+        <button class="primary-button" value="save" id="saveLocation">Зберегти</button>
+      </form>
+    </dialog>
+    <dialog id="reportDialog" class="modal report-modal">
+      <form method="dialog">
+        <button class="close" value="cancel" aria-label="Закрити">×</button>
+        <p class="eyebrow">Оновити стан</p><h2>Що є у вас?</h2>
+        <p class="modal-copy">Вашу точну адресу ніхто не побачить.</p>
+        <div class="quick-report" id="quickReport"></div>
+        <button class="primary-button" value="save">Надіслати повідомлення</button>
+      </form>
+    </dialog>
+    <dialog id="alertDialog" class="modal">
+      <form method="dialog">
+        <button class="close" value="cancel" aria-label="Закрити">×</button>
+        <p class="eyebrow">Сповіщення</p><h2>Не пропустити зміни?</h2>
+        <p class="modal-copy">Надішлемо лише важливі зміни: коли зникне або з’явиться світло, вода чи зв’язок у вашому районі.</p>
+        <button class="primary-button" value="save" id="enableAlerts">Увімкнути сповіщення</button>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
