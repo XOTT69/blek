@@ -70,14 +70,14 @@
           <button class="filter" data-filter="wifi">Wi‑Fi</button>
           <button class="filter" data-filter="water">Вода</button>
         </div>
-        <div class="map-card" aria-label="Схематична мапа місць">
+        <div class="map-card" id="mapCard" aria-label="Схематична мапа місць">
           <div class="map-street street-a"></div><div class="map-street street-b"></div><div class="map-street street-c"></div>
-          <span class="map-label label-a">Верхній Вал</span><span class="map-label label-b">Контрактова</span>
+          <span class="map-label label-a" id="mapCityLabel">Верхній Вал</span><span class="map-label label-b" id="mapDistrictLabel">Контрактова</span>
           <button class="map-pin pin-1" data-place="0" aria-label="Кафе Хлебний"><span>⚡</span></button>
           <button class="map-pin pin-2" data-place="1" aria-label="Бібліотека на Подолі"><span>⌁</span></button>
           <button class="map-pin pin-3" data-place="2" aria-label="Coworking Підвал"><span>◒</span></button>
           <div class="you-are-here">Ви тут</div>
-          <p class="map-caption">Точки не показують точні адреси користувачів</p>
+          <p class="map-caption" id="mapCaption">Точки не показують точні адреси користувачів</p>
         </div>
         <div class="place-list" id="placeList"></div>
       </section>
@@ -93,10 +93,15 @@
     <dialog id="locationDialog" class="modal">
       <form method="dialog">
         <button class="close" value="cancel" aria-label="Закрити">×</button>
-        <p class="eyebrow">Ваша локація</p><h2>Оберіть район</h2>
-        <label>Місто<select id="citySelect"><option>Київ</option><option>Львів</option><option>Харків</option><option>Одеса</option></select></label>
-        <label>Район<input id="districtInput" value="Поділ" maxlength="30" /></label>
-        <button class="primary-button" value="save" id="saveLocation">Зберегти</button>
+        <p class="eyebrow">Ваша локація</p><h2>Знайдіть потрібне місце</h2>
+        <p class="modal-copy">Місто, село, вулиця або адреса — пошук лише по Україні.</p>
+        <label>Пошук<input id="locationSearch" placeholder="Напр.: Хрещатик, 1, Київ" maxlength="180" autocomplete="street-address" /></label>
+        <button class="search-button" type="button" id="locationSearchButton">Знайти</button>
+        <p class="search-feedback" id="searchFeedback">Пошук вручну — до 6 точних варіантів.</p>
+        <div class="search-results" id="searchResults" aria-live="polite"></div>
+        <div class="selected-location" id="selectedLocation" hidden></div>
+        <button class="primary-button" value="save" id="saveLocation" disabled>Використати локацію</button>
+        <p class="attribution">Пошук: © OpenStreetMap contributors</p>
       </form>
     </dialog>
     <dialog id="reportDialog" class="modal report-modal">
