@@ -19,6 +19,12 @@ let realtimeChannel = null;
 let selectedReport = {};
 
 function since(time) { const minutes = Math.max(0, Math.round((Date.now() - new Date(time)) / 60_000)); return minutes < 1 ? 'щойно' : `${minutes} хв тому`; }
+function confirmationsLabel(count) {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  const ending = lastTwo >= 11 && lastTwo <= 14 ? 'підтверджень' : last === 1 ? 'підтвердження' : last >= 2 && last <= 4 ? 'підтвердження' : 'підтверджень';
+  return `${count} ${ending} за годину`;
+}
 function setConnection(live) { $('#connectionPill').innerHTML = `<i></i> ${live ? 'Оновлюється наживо' : 'Демо-режим'}`; }
 function statusValue(service, status) {
   if (status === 'unavailable') return 'Немає';
@@ -31,7 +37,7 @@ function renderServices() {
     const card = document.querySelector(`[data-service="${key}"].status-card`);
     card.classList.remove('status-good', 'status-warn'); card.classList.add(cardClass(key));
     $(`#${key}Value`).textContent = item.value;
-    $(`#${key}Proof`).textContent = `${item.confirmations} підтверджень за годину`;
+    $(`#${key}Proof`).textContent = confirmationsLabel(item.confirmations);
     $(`#${key}Time`).textContent = since(item.updated);
   });
 }
