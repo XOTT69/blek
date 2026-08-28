@@ -141,14 +141,18 @@ function parseSearchResult(place) {
   const district = address.city_district || address.suburb || address.neighbourhood || address.quarter || address.municipality || address.county || 'Уся громада';
   return { city, district, label: place.displayName, lat: place.lat, lon: place.lon };
 }
+function selectLocationResult(place) {
+  selectedSearchResult = parseSearchResult(place);
+  $('#selectedLocation').textContent = `Обрано: ${selectedSearchResult.label}`;
+  $('#selectedLocation').hidden = false;
+  $('#saveLocation').disabled = false;
+  $('#saveLocation').textContent = 'Зберегти цю локацію';
+  $('#searchFeedback').textContent = `Звіти будуть об’єднані для: ${selectedSearchResult.city} · ${selectedSearchResult.district}`;
+}
 function showSearchResults(results) {
   $('#searchResults').innerHTML = results.map((place, index) => `<button type="button" class="search-result" data-search-result="${index}"><strong>${escapeHtml(place.displayName.split(',').slice(0, 2).join(', '))}</strong><span>${escapeHtml(place.displayName)}</span></button>`).join('');
   document.querySelectorAll('[data-search-result]').forEach((button) => button.addEventListener('click', () => {
-    selectedSearchResult = parseSearchResult(results[Number(button.dataset.searchResult)]);
-    $('#selectedLocation').textContent = `Обрано: ${selectedSearchResult.label}`;
-    $('#selectedLocation').hidden = false;
-    $('#saveLocation').disabled = false;
-    $('#searchFeedback').textContent = `Звіти будуть об’єднані для: ${selectedSearchResult.city} · ${selectedSearchResult.district}`;
+    selectLocationResult(results[Number(button.dataset.searchResult)]);
   }));
 }
 async function loadNearbyPlaces() {
@@ -187,7 +191,7 @@ async function findLocation() {
     const cacheKey = query.toLocaleLowerCase('uk');
     if (geocodeCache.has(cacheKey)) {
       const cachedResults = geocodeCache.get(cacheKey);
-      $('#searchFeedback').textContent = 'Оберіть точний варіант:';
+      $('#searchFeedback').textContent = 'Оберіть точний варіант нижче:';
       showSearchResults(cachedResults);
       return;
     }
@@ -196,15 +200,32 @@ async function findLocation() {
     if (!response.ok) throw new Error(payload.error);
     if (!payload.results?.length) { $('#searchFeedback').textContent = 'Нічого не знайдено. Спробуйте повнішу назву або додайте місто.'; return; }
     geocodeCache.set(cacheKey, payload.results);
-    $('#searchFeedback').textContent = 'Оберіть точний варіант:';
+    $('#searchFeedback').textContent = 'Оберіть точний варіант нижче:';
     showSearchResults(payload.results);
   } catch (error) { $('#searchFeedback').textContent = error.message || 'Пошук тимчасово недоступний.'; }
 }
+async function findMyLocation() {
+  if (!navigator.geolocation) { $('#searchFeedback').textContent = 'Ваш браузер не підтримує визначення геолокації. Скористайтеся пошуком вручну.'; return; }
+  const button = $('#geolocationButton');
+  button.disabled = true; button.textContent = 'Визначаємо місце…'; $('#searchFeedback').textContent = 'Попросимо дозвіл на геолокацію лише для пошуку поруч.';
+  try {
+    const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 12_000, maximumAge: 300_000 }));
+    $('#searchFeedback').textContent = 'Визначаємо адресу…';
+    const response = await fetch(`/api/reverse?lat=${encodeURIComponent(position.coords.latitude)}&lon=${encodeURIComponent(position.coords.longitude)}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error);
+    selectLocationResult(payload.result);
+  } catch (error) {
+    const message = error.code === 1 ? 'Доступ до геолокації заборонено. Дозвольте його в браузері або введіть адресу вручну.' : error.code === 3 ? 'Не вдалося визначити місце вчасно. Спробуйте ще раз або введіть адресу.' : (error.message || 'Не вдалося визначити локацію. Спробуйте пошук вручну.');
+    $('#searchFeedback').textContent = message;
+  } finally { button.disabled = false; button.textContent = '⌖ Визначити мою геолокацію'; }
+}
 
 document.querySelectorAll('.report-actions button').forEach((button) => button.addEventListener('click', () => sendReport(button.dataset.service, button.dataset.status === 'yes' ? 'available' : 'unavailable')));
-$('#locationButton').addEventListener('click', () => { selectedSearchResult = null; $('#locationSearch').value = ''; $('#searchResults').innerHTML = ''; $('#selectedLocation').hidden = true; $('#saveLocation').disabled = true; $('#searchFeedback').textContent = 'Пошук вручну — до 6 точних варіантів.'; $('#locationDialog').showModal(); });
+$('#locationButton').addEventListener('click', () => { selectedSearchResult = null; $('#locationSearch').value = ''; $('#searchResults').innerHTML = ''; $('#selectedLocation').hidden = true; $('#saveLocation').disabled = true; $('#saveLocation').textContent = 'Спершу оберіть локацію'; $('#searchFeedback').textContent = 'Введіть адресу й оберіть один із варіантів нижче.'; $('#locationDialog').showModal(); });
 $('#locationSearchButton').addEventListener('click', findLocation);
 $('#locationSearch').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); findLocation(); } });
+$('#geolocationButton').addEventListener('click', findMyLocation);
 $('#locationDialog').addEventListener('close', async () => { if ($('#locationDialog').returnValue !== 'save' || !selectedSearchResult) return; locationState = selectedSearchResult; localStorage.setItem('poruch-location', JSON.stringify(locationState)); updateLocationLabel(); await refreshLiveData().catch(console.error); if (db) subscribeToUpdates(); await loadNearbyPlaces(); toast('Локацію оновлено'); });
 $('#filterButton').addEventListener('click', () => { $('#filterRow').hidden = !$('#filterRow').hidden; });
 document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelector('.filter.active').classList.remove('active'); button.classList.add('active'); renderPlaces(button.dataset.filter); }));

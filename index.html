@@ -94,14 +94,15 @@
       <form method="dialog">
         <button class="close" value="cancel" aria-label="Закрити">×</button>
         <p class="eyebrow">Ваша локація</p><h2>Знайдіть потрібне місце</h2>
-        <p class="modal-copy">Місто, село, вулиця або адреса — пошук лише по Україні.</p>
+        <p class="modal-copy">Місто, село, вулиця або адреса — пошук лише по Україні. Або дозвольте визначити ваше місце автоматично.</p>
+        <button class="geolocation-button" type="button" id="geolocationButton">⌖ Визначити мою геолокацію</button>
         <label>Пошук<input id="locationSearch" placeholder="Напр.: Хрещатик, 1, Київ" maxlength="180" autocomplete="street-address" /></label>
         <button class="search-button" type="button" id="locationSearchButton">Знайти</button>
-        <p class="search-feedback" id="searchFeedback">Пошук вручну — до 6 точних варіантів.</p>
+        <p class="search-feedback" id="searchFeedback">Введіть адресу й оберіть один із варіантів нижче.</p>
         <div class="search-results" id="searchResults" aria-live="polite"></div>
         <div class="selected-location" id="selectedLocation" hidden></div>
-        <button class="primary-button" value="save" id="saveLocation" disabled>Використати локацію</button>
-        <p class="attribution">Пошук: © OpenStreetMap contributors</p>
+        <button class="primary-button" value="save" id="saveLocation" disabled>Спершу оберіть локацію</button>
+        <p class="attribution">Локація зберігається лише на цьому пристрої. Пошук: © OpenStreetMap contributors</p>
       </form>
     </dialog>
     <dialog id="reportDialog" class="modal report-modal">
