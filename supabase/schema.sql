@@ -33,12 +33,37 @@ create policy "Anyone can read verified places" on public.places for select to a
 
 alter publication supabase_realtime add table public.status_reports;
 
-insert into public.places (city, district, name, details, capabilities, distance_label, sort_order)
-select 'Київ', 'Поділ', 'Хлебний', 'Зарядка · Wi‑Fi · відкрито', array['charge','wifi'], '4 хв', 1
-where not exists (select 1 from public.places where city = 'Київ' and district = 'Поділ' and name = 'Хлебний');
-insert into public.places (city, district, name, details, capabilities, distance_label, sort_order)
-select 'Київ', 'Поділ', 'Бібліотека на Подолі', 'Тепло · вода · 12 місць', array['water','charge'], '7 хв', 2
-where not exists (select 1 from public.places where city = 'Київ' and district = 'Поділ' and name = 'Бібліотека на Подолі');
-insert into public.places (city, district, name, details, capabilities, distance_label, sort_order)
-select 'Київ', 'Поділ', 'Coworking «Підвал»', 'Генератор · стабільний Wi‑Fi', array['wifi','charge'], '9 хв', 3
-where not exists (select 1 from public.places where city = 'Київ' and district = 'Поділ' and name = 'Coworking «Підвал»');
+-- One anonymous account can send one status per service every two minutes.
+-- This reduces accidental double taps and basic spam without storing personal data.
+create or replace function public.submit_status_report(
+  p_city text,
+  p_district text,
+  p_service text,
+  p_status text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if exists (
+    select 1 from public.status_reports
+    where reporter_id = auth.uid()
+      and service = p_service
+      and created_at > now() - interval '2 minutes'
+  ) then
+    raise exception 'Please wait before sending another report for this service';
+  end if;
+
+  insert into public.status_reports (city, district, service, status, reporter_id)
+  values (p_city, p_district, p_service, p_status, auth.uid());
+end;
+$$;
+
+revoke all on function public.submit_status_report(text, text, text, text) from public;
+grant execute on function public.submit_status_report(text, text, text, text) to authenticated;

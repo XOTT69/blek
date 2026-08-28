@@ -4,22 +4,20 @@ const DEMO_SERVICES = {
   water: { label: 'Вода', value: 'Є', confirmations: 18, updated: Date.now() - 6 * 60_000 },
   internet: { label: 'Мобільний інтернет', value: 'Нестабільний', confirmations: 9, updated: Date.now() - 10 * 60_000 },
 };
-const DEMO_PLACES = [
-  { name: 'Хлебний', detail: 'Зарядка · Wi‑Fi · відкрито', distance: '4 хв', icon: '⚡', tags: ['charge', 'wifi'] },
-  { name: 'Бібліотека на Подолі', detail: 'Тепло · вода · 12 місць', distance: '7 хв', icon: '⌁', tags: ['water', 'charge'] },
-  { name: 'Coworking «Підвал»', detail: 'Генератор · стабільний Wi‑Fi', distance: '9 хв', icon: '◒', tags: ['wifi', 'charge'] },
-];
-const DEMO_PLACE_NAMES = new Set(DEMO_PLACES.map((place) => place.name));
+const DEMO_PLACES = [];
 const $ = (selector) => document.querySelector(selector);
 let savedLocation = null;
 try { savedLocation = JSON.parse(localStorage.getItem('poruch-location') || 'null'); } catch { localStorage.removeItem('poruch-location'); }
-let locationState = savedLocation || { city: 'Київ', district: 'Поділ' };
+let locationState = savedLocation || { city: 'Київ', district: 'Поділ', lat: 50.4662, lon: 30.5157 };
 let services = JSON.parse(localStorage.getItem('poruch-demo-services') || 'null') || structuredClone(DEMO_SERVICES);
 let places = DEMO_PLACES;
+let verifiedPlaces = [];
+let nearbyPlaces = [];
 let db = null;
 let realtimeChannel = null;
 let selectedReport = {};
 let selectedSearchResult = null;
+const geocodeCache = new Map();
 
 function emptyServices() { return Object.fromEntries(Object.entries(DEMO_SERVICES).map(([key, item]) => [key, { ...item, value: 'Ще немає даних', confirmations: 0, updated: null }])); }
 function since(time) { if (!time) return 'ще немає звітів'; const minutes = Math.max(0, Math.round((Date.now() - new Date(time)) / 60_000)); return minutes < 1 ? 'щойно' : `${minutes} хв тому`; }
@@ -46,8 +44,31 @@ function renderServices() {
   });
 }
 function placeIcon(place) { return place.icon || ((place.tags || []).includes('charge') ? '⚡' : '⌁'); }
+function distanceInKm(lat, lon) {
+  if (!locationState.lat || !locationState.lon || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
+  const toRad = (degrees) => degrees * Math.PI / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(Number(lat) - Number(locationState.lat));
+  const dLon = toRad(Number(lon) - Number(locationState.lon));
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(locationState.lat)) * Math.cos(toRad(lat)) * Math.sin(dLon / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function formatDistance(place) {
+  const distance = distanceInKm(place.lat, place.lon);
+  if (distance === null) return place.distance || 'Поруч';
+  return distance < 1 ? `${Math.max(50, Math.round(distance * 1000 / 50) * 50)} м` : `${distance.toFixed(1).replace('.', ',')} км`;
+}
+function updatePlaces() {
+  places = [...verifiedPlaces, ...nearbyPlaces];
+  renderPlaces();
+  renderMapContext();
+}
 function renderPlaces(filter = document.querySelector('.filter.active')?.dataset.filter || 'all') {
-  $('#placeList').innerHTML = places.filter((p) => filter === 'all' || p.tags.includes(filter)).map((p) => `<article class="place"><span class="place-icon">${placeIcon(p)}</span><div class="place-info"><h3>${p.name}</h3><p>${p.detail}</p></div><span class="place-distance">${p.distance || 'Поруч'}</span></article>`).join('') || '<p class="empty">Поки що немає підтверджених місць.</p>';
+  const visiblePlaces = places.filter((place) => filter === 'all' || (place.tags || []).includes(filter));
+  $('#placeList').innerHTML = visiblePlaces.map((place) => {
+    const content = `<span class="place-icon">${escapeHtml(placeIcon(place))}</span><div class="place-info"><h3>${escapeHtml(place.name)}</h3><p>${escapeHtml(place.detail || 'Деталі не вказані')}</p></div><span class="place-distance">${escapeHtml(formatDistance(place))}</span>`;
+    return place.url ? `<a class="place place-link" href="${escapeHtml(place.url)}" target="_blank" rel="noopener noreferrer" aria-label="Відкрити ${escapeHtml(place.name)} на мапі">${content}</a>` : `<article class="place">${content}</article>`;
+  }).join('') || '<p class="empty">Поки що немає місць цього типу. Спробуйте інший фільтр.</p>';
 }
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => el.classList.remove('show'), 3200); }
 function updateLocationLabel() { $('#locationName').textContent = `${locationState.city} · ${locationState.district}`; renderMapContext(); }
@@ -56,7 +77,7 @@ function renderMapContext() {
   $('#mapDistrictLabel').textContent = locationState.district;
   const live = Boolean(db);
   $('#mapCard').classList.toggle('live-map', live);
-  $('#mapCaption').textContent = live ? (places.length ? 'Лише верифіковані точки; точні адреси людей не показуються' : 'У цій локації ще немає верифікованих точок') : 'Демоточок не використовуйте як реальні адреси';
+  $('#mapCaption').textContent = places.length ? 'Місця показані списком; точні адреси людей не збираються' : 'Виберіть адресу, щоб знайти місця поруч';
 }
 function saveDemoServices() { localStorage.setItem('poruch-demo-services', JSON.stringify(services)); renderServices(); }
 function demoReport(service, status) { services[service] = { ...services[service], value: statusValue(service, status), confirmations: services[service].confirmations + 1, updated: Date.now() }; saveDemoServices(); }
@@ -82,7 +103,10 @@ async function refreshLiveData() {
   ]);
   if (reportsResult.error) throw reportsResult.error;
   aggregateReports(reportsResult.data || []);
-  if (!placesResult.error) { places = (placesResult.data || []).filter((place) => !DEMO_PLACE_NAMES.has(place.name)).map((p) => ({ name: p.name, detail: p.details, tags: p.capabilities || [], distance: p.distance_label || 'Поруч' })); renderPlaces(); renderMapContext(); }
+  if (!placesResult.error) {
+    verifiedPlaces = (placesResult.data || []).map((place) => ({ name: place.name, detail: place.details, tags: place.capabilities || [], distance: place.distance_label || 'Поруч' }));
+    updatePlaces();
+  }
 }
 function aggregateReports(reports) {
   services = emptyServices();
@@ -97,8 +121,13 @@ function aggregateReports(reports) {
 }
 async function sendReport(service, status, silent = false) {
   if (!db) { demoReport(service, status); if (!silent) toast(`Дякуємо! Стан «${services[service].label}» оновлено в демо.`); return; }
-  const { error } = await db.from('status_reports').insert({ city: locationState.city, district: locationState.district, service, status });
-  if (error) { toast('Не вдалося зберегти повідомлення. Спробуйте ще раз.'); console.error(error); return; }
+  const { error } = await db.rpc('submit_status_report', { p_city: locationState.city, p_district: locationState.district, p_service: service, p_status: status });
+  if (error) {
+    const rateLimited = error.message?.includes('Please wait before sending');
+    toast(rateLimited ? 'Ви вже повідомляли про цей сервіс. Спробуйте ще раз через 2 хвилини.' : 'Не вдалося зберегти повідомлення. Спробуйте ще раз.');
+    console.error(error);
+    return;
+  }
   await refreshLiveData(); if (!silent) toast(`Дякуємо! Стан «${services[service].label}» оновлено.`);
 }
 function subscribeToUpdates() {
@@ -129,9 +158,24 @@ async function loadNearbyPlaces() {
     const response = await fetch(`/api/nearby?lat=${encodeURIComponent(locationState.lat)}&lon=${encodeURIComponent(locationState.lon)}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error);
-    places = (payload.places || []).map((place) => ({ name: place.name, detail: [place.type, place.openingHours ? `Години: ${place.openingHours}` : 'Режим роботи не вказано'].join(' · '), tags: [], icon: place.icon, distance: 'OSM' }));
-    renderPlaces(); renderMapContext();
-    $('#nearbyFeedback').textContent = places.length ? `Знайдено ${places.length} реальних об’єктів. Дані про режим роботи можуть бути неактуальними — перевіряйте перед візитом.` : 'Поруч не знайдено об’єктів з потрібними тегами OpenStreetMap.';
+    nearbyPlaces = (payload.places || []).map((place) => {
+      const lat = Number(place.lat);
+      const lon = Number(place.lon);
+      const mapUrl = Number.isFinite(lat) && Number.isFinite(lon) ? `https://www.openstreetmap.org/?mlat=${encodeURIComponent(lat)}&mlon=${encodeURIComponent(lon)}#map=18/${lat}/${lon}` : null;
+      return {
+        name: place.name,
+        detail: [place.type, place.openingHours ? `Години: ${place.openingHours}` : 'Режим роботи не вказано'].join(' · '),
+        tags: place.kind ? [place.kind] : [],
+        icon: place.icon,
+        lat,
+        lon,
+        url: mapUrl,
+      };
+    });
+    const activeFilter = document.querySelector('.filter.active');
+    if (activeFilter?.dataset.filter !== 'all') { activeFilter.classList.remove('active'); document.querySelector('[data-filter="all"]').classList.add('active'); }
+    updatePlaces();
+    $('#nearbyFeedback').textContent = nearbyPlaces.length ? `Знайдено ${nearbyPlaces.length} реальних об’єктів. Дані про режим роботи можуть бути неактуальними — перевіряйте перед візитом.` : 'Поруч не знайдено об’єктів з потрібними тегами OpenStreetMap.';
   } catch (error) { $('#nearbyFeedback').textContent = error.message || 'Пошук місць тимчасово недоступний.'; }
   finally { $('#nearbyButton').disabled = false; $('#nearbyButton').textContent = 'Знайти реальні місця поруч'; }
 }
@@ -140,10 +184,18 @@ async function findLocation() {
   if (query.length < 3) { $('#searchFeedback').textContent = 'Введіть щонайменше 3 символи.'; return; }
   $('#searchFeedback').textContent = 'Шукаємо в OpenStreetMap…'; $('#searchResults').innerHTML = '';
   try {
+    const cacheKey = query.toLocaleLowerCase('uk');
+    if (geocodeCache.has(cacheKey)) {
+      const cachedResults = geocodeCache.get(cacheKey);
+      $('#searchFeedback').textContent = 'Оберіть точний варіант:';
+      showSearchResults(cachedResults);
+      return;
+    }
     const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error);
     if (!payload.results?.length) { $('#searchFeedback').textContent = 'Нічого не знайдено. Спробуйте повнішу назву або додайте місто.'; return; }
+    geocodeCache.set(cacheKey, payload.results);
     $('#searchFeedback').textContent = 'Оберіть точний варіант:';
     showSearchResults(payload.results);
   } catch (error) { $('#searchFeedback').textContent = error.message || 'Пошук тимчасово недоступний.'; }
@@ -153,10 +205,9 @@ document.querySelectorAll('.report-actions button').forEach((button) => button.a
 $('#locationButton').addEventListener('click', () => { selectedSearchResult = null; $('#locationSearch').value = ''; $('#searchResults').innerHTML = ''; $('#selectedLocation').hidden = true; $('#saveLocation').disabled = true; $('#searchFeedback').textContent = 'Пошук вручну — до 6 точних варіантів.'; $('#locationDialog').showModal(); });
 $('#locationSearchButton').addEventListener('click', findLocation);
 $('#locationSearch').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); findLocation(); } });
-$('#locationDialog').addEventListener('close', async () => { if ($('#locationDialog').returnValue !== 'save' || !selectedSearchResult) return; locationState = selectedSearchResult; localStorage.setItem('poruch-location', JSON.stringify(locationState)); updateLocationLabel(); $('#nearbyFeedback').textContent = 'Локацію оновлено. Натисніть «Знайти реальні місця поруч». '; await refreshLiveData().catch(console.error); if (db) subscribeToUpdates(); toast('Локацію оновлено'); });
+$('#locationDialog').addEventListener('close', async () => { if ($('#locationDialog').returnValue !== 'save' || !selectedSearchResult) return; locationState = selectedSearchResult; localStorage.setItem('poruch-location', JSON.stringify(locationState)); updateLocationLabel(); await refreshLiveData().catch(console.error); if (db) subscribeToUpdates(); await loadNearbyPlaces(); toast('Локацію оновлено'); });
 $('#filterButton').addEventListener('click', () => { $('#filterRow').hidden = !$('#filterRow').hidden; });
 document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelector('.filter.active').classList.remove('active'); button.classList.add('active'); renderPlaces(button.dataset.filter); }));
-document.querySelectorAll('.map-pin').forEach((pin) => pin.addEventListener('click', () => { const place = DEMO_PLACES[pin.dataset.place]; toast(`${place.name}: ${place.detail}`); }));
 $('#nearbyButton').addEventListener('click', loadNearbyPlaces);
 function renderQuickReport() {
   $('#quickReport').innerHTML = Object.entries(services).map(([key, item]) => `<button class="${selectedReport[key] === 'available' ? 'selected' : ''}" data-quick="${key}">${item.label}<span>${selectedReport[key] === 'available' ? 'Є / працює' : 'Немає'}</span></button>`).join('');
@@ -168,4 +219,4 @@ $('#alertsButton').addEventListener('click', () => $('#alertDialog').showModal()
 $('#enableAlerts').addEventListener('click', (event) => { event.preventDefault(); $('#alertDialog').close(); toast('Сповіщення увімкнено — функція буде активна після запуску сервера.'); });
 let deferredPrompt; window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); deferredPrompt = event; $('#installButton').hidden = false; }); $('#installButton').addEventListener('click', async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $('#installButton').hidden = true; });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js'));
-updateLocationLabel(); renderServices(); renderPlaces(); setupSupabase(); setInterval(renderServices, 60_000);
+updateLocationLabel(); renderServices(); renderPlaces(); setupSupabase().finally(() => loadNearbyPlaces()); setInterval(renderServices, 60_000);

@@ -1,4 +1,11 @@
 const TYPES = { cafe: ['Кафе', '☕'], fast_food: ['Заклад харчування', '☕'], restaurant: ['Ресторан', '☕'], pharmacy: ['Аптека', '✚'], library: ['Бібліотека', '▤'], fuel: ['АЗК', '⛽'], coworking: ['Коворкінг', '◒'] };
+function distanceMeters(fromLat, fromLon, toLat, toLon) {
+  const toRadians = (degrees) => degrees * Math.PI / 180;
+  const dLat = toRadians(toLat - fromLat);
+  const dLon = toRadians(toLon - fromLon);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export default async function handler(request, response) {
   const lat = Number(request.query.lat);
@@ -13,8 +20,10 @@ export default async function handler(request, response) {
       const tags = element.tags || {};
       const amenity = tags.amenity || (tags.office === 'coworking' ? 'coworking' : '');
       const [type, icon] = TYPES[amenity] || ['Місце', '⌖'];
-      return { name: tags['name:uk'] || tags.name || type, type, icon, openingHours: tags.opening_hours || null, website: tags.website || tags['contact:website'] || null, lat: element.lat || element.center?.lat, lon: element.lon || element.center?.lon };
-    }).filter((place) => place.name).slice(0, 12);
+      return { name: tags['name:uk'] || tags.name || type, type, kind: amenity, icon, openingHours: tags.opening_hours || null, website: tags.website || tags['contact:website'] || null, lat: element.lat || element.center?.lat, lon: element.lon || element.center?.lon };
+    }).filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lon))
+      .sort((a, b) => distanceMeters(lat, lon, a.lat, a.lon) - distanceMeters(lat, lon, b.lat, b.lon))
+      .slice(0, 12);
     response.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=3600');
     return response.status(200).json({ places });
   } catch (error) {

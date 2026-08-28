@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#12372A" />
+    <meta name="theme-color" content="#0B1020" />
     <meta name="description" content="Поруч — актуальний стан вашого району" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -61,22 +61,19 @@
 
       <section class="places" id="places">
         <div class="section-heading">
-          <div><p class="eyebrow">Підтверджені місця</p><h2>Де можна побути зараз</h2></div>
+          <div><p class="eyebrow">Місця поруч</p><h2>Що є біля вас</h2></div>
           <button class="text-button" id="filterButton" type="button">Фільтр <span>⌄</span></button>
         </div>
         <div class="filter-row" id="filterRow" hidden>
           <button class="filter active" data-filter="all">Усі</button>
-          <button class="filter" data-filter="charge">Зарядка</button>
-          <button class="filter" data-filter="wifi">Wi‑Fi</button>
-          <button class="filter" data-filter="water">Вода</button>
+          <button class="filter" data-filter="cafe">Кафе</button>
+          <button class="filter" data-filter="pharmacy">Аптеки</button>
+          <button class="filter" data-filter="library">Бібліотеки</button>
+          <button class="filter" data-filter="fuel">АЗК</button>
         </div>
         <div class="map-card" id="mapCard" aria-label="Схематична мапа місць">
           <div class="map-street street-a"></div><div class="map-street street-b"></div><div class="map-street street-c"></div>
           <span class="map-label label-a" id="mapCityLabel">Верхній Вал</span><span class="map-label label-b" id="mapDistrictLabel">Контрактова</span>
-          <button class="map-pin pin-1" data-place="0" aria-label="Кафе Хлебний"><span>⚡</span></button>
-          <button class="map-pin pin-2" data-place="1" aria-label="Бібліотека на Подолі"><span>⌁</span></button>
-          <button class="map-pin pin-3" data-place="2" aria-label="Coworking Підвал"><span>◒</span></button>
-          <div class="you-are-here">Ви тут</div>
           <p class="map-caption" id="mapCaption">Точки не показують точні адреси користувачів</p>
         </div>
         <a class="official-card" href="https://nezlamnist.gov.ua/" target="_blank" rel="noopener noreferrer"><span>✦</span><span><strong>Пункти Незламності</strong><small>Офіційна мапа місць підтримки</small></span><b>↗</b></a>
